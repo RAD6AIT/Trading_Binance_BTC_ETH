@@ -16,7 +16,7 @@ binance_short = ccxt.binance({'apiKey': '37fo4lAJ89ldUUvkivMqdsEc48oJ6WO88KBNzPy
 client = Client('Z9XxJxeQHG84eR2xh5A6A9Prt0e1eUsr2AelJjn27yJL0Kis4ynrzUYe0sZlabK9','JGDrUkKwKJZvJyVSbyDC7QTVG3Nd2sKJW2LkcQnPGDy9AnHxCSncd44UREDhHyb5')
 
 eth_start = (D(str(0.40378122)))+(D(str(0.06648184)))
-btc_start = (D(str(0.01915878)))+(D(str(0.00078972)))+(D(str(0.00080919))) + (D(str(0.00179633))) + (D(str(0.00188586))) + (D(str(0.00103549))) + (D(str(0.02012208))) + (D(str(0.00102698))) + (D(str(0.00760180)))+(D(str(0.00343089)))+(D(str(0.00153433)))
+btc_start = (D(str(0.01915878)))+(D(str(0.00078972)))+(D(str(0.00080919))) + (D(str(0.00179633))) + (D(str(0.00188586))) + (D(str(0.00103549))) + (D(str(0.02012208))) + (D(str(0.00102698))) + (D(str(0.00760180)))+(D(str(0.00343089)))+(D(str(0.00153433)))+(D(str(0.00109992)))+(D(str(0.00096041)))
 Ratio_Start = (D(str(0.04803)))
 
 Total_Start_btc = btc_start + (eth_start * Ratio_Start)
