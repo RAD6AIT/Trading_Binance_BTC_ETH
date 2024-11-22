@@ -55,6 +55,9 @@ step = D('0.00001')
 offload_step = D('0.00005')
 inload_step = D('0.00005') 
 
+limit_eth = 0.37883225 * 0.9
+limit_btc = 0.01906911 * 0.9
+
 first = True
 
 def GetSellPrice(price):
@@ -260,6 +263,7 @@ def inload(w,eth_btc_ask, eth_btc_bid):
             if ((D(str(sell_order_profit['price'])) <= sell_price + inload_step) and sell_order_profit['OFFLOAD'] == True):
                 try:
                     o = binance.create_order('ETH/BTC', 'limit', 'sell', sell_order_profit['amount'], sell_order_profit['price'])
+                    #o = binance.create_order('ETH/BTC', 'limit', 'sell', (amount / sell_price) + amount   , sell_order_profit['price'])
                     sell_order_profit['id'] = o['id']
                     sell_order_profit['OFFLOAD'] = False
                     print ("inload sell_order_profit")
@@ -274,8 +278,8 @@ def inload(w,eth_btc_ask, eth_btc_bid):
         for buy_order_profit in list_buy_profit:
             if ((D(str(buy_order_profit['price'])) >= buy_price - inload_step) and buy_order_profit['OFFLOAD'] == True):
                 try:
-                    #if (n >= 1):
-                    o = binance.create_order('ETH/BTC', 'limit', 'buy', buy_order_profit['amount'], buy_order_profit['price'])
+                    #o = binance.create_order('ETH/BTC', 'limit', 'buy', buy_order_profit['amount'], buy_order_profit['price'])
+                    o = binance.create_order('ETH/BTC', 'limit', 'buy', (amount / buy_price) + amount , buy_order_profit['price'])
                     buy_order_profit['id'] = o['id']
                     buy_order_profit['OFFLOAD'] = False
                     print ("inload buy_order_profit")
@@ -491,6 +495,11 @@ while True:
 
     Trend = supertrend()
 
+    print ("****** Trend ******")
+    if (Trend == 1):
+        print ("Trend Haussier => on quote le bid(buy)")
+    elif (Trend == -1):
+        print ("Trend Baissier => on quote le ask(sell)")
 
     ##### sell side
     print ("eth_btc_ask:", eth_btc_ask)
@@ -499,6 +508,7 @@ while True:
     print ("last_sell ", last_sell)
     print ("before_last_sell ", before_last_sell)
     
+
     ### temporaire
     sell_depth = sell_price +  depth
     
@@ -529,6 +539,18 @@ while True:
                 print ("Add sell limit order ", sell_price)
             except :
                 print ("exception add sell limit order")
+        elif (sell_tag == False and sell_price < D('0.04999') and w['ETH']['free'] >= 0.0020 and Trend == -1):
+            if (w['ETH']['free'] > limit_eth):
+                try:
+                    order_sell = binance.create_order('ETH/BTC', 'limit', 'sell', (amount / sell_price) + amount , sell_price, params)
+                    last_sell = sell_price
+                    before_last_sell = last_sell - step
+                    list_sell_order.append(order_sell)
+                    print ("Add sell limit order ", sell_price)
+                except :
+                    print ("exception add sell limit order")
+
+                
 
         sell_price = sell_price + step      
 
@@ -575,7 +597,16 @@ while True:
             except :
                 print ("exception add buy limit order ")
                     
-            ## on confirmation add order in the list
+        elif (buy_tag == False and buy_price > D('0.06') and w['BTC']['free'] >= 0.0001 and Trend == 1):
+            if (w['BTC']['free'] > limit_eth):
+                try:
+                    order_buy = binance.create_order('ETH/BTC', 'limit', 'buy', (amount / buy_price) + amount, buy_price, params)
+                    last_buy = buy_price
+                    before_last_buy = last_buy + step
+                    list_buy_order.append(order_buy)
+                    print ("Add buy limit order ", buy_price)
+                except :
+                    print ("exception add buy limit order ")
             
         ## decrement price
         buy_price = buy_price - step

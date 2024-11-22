@@ -30,32 +30,62 @@ binance_markets = binance.load_markets()
 
 client = Client('2pzcSvkiSYf1n36JbjK7aceGucmyk3CIXKKgz6PMYZxJ3MAe3IVcDrwy0qnmlLLq', 'whR3Ti7zCF5uphZtIAGvvZVjyWIBH8z5UEaY7SHg3zZsHi6P3OugIQrk7UXZzvkK')
 
-b = binance.fetch_balance ()
+
+
+
+
+b = Total_wallet = binance.fetch_balance ()
 eth_wallet_zeroday = b['ETH']['free']
 btc_wallet_zeroday = b['BTC']['free']
+
+
+Ratio_Start = 0.05553
+Total_Start = 0.0398181088425
+master_round = 1
+Total_last_round = 0
+
+
 
 list_sell_order = []
 list_buy_order = []
 
+list_wait_sell = []
+list_wait_buy = []
+
 list_sell_profit = []
 list_buy_profit = []
+
+list_long = []
+long_set = set(list_long)
+
+list_short = []
+short_set = set (list_short)
 
 n = 0
 pnl_sell = 0
 pnl_buy = 0
-last_buy = D('0') 
-before_last_buy = D('0')
-last_sell = D('0')
-before_last_sell = D('0')
 
-amount = D('0.0001')
+amount = D('0.0005')
 gain = 0.003
 depth = D('0.00003')
 step = D('0.00001')
 offload_step = D('0.00005')
 inload_step = D('0.00005') 
 
+
 first = True
+last_sell = 0
+last_buy = 0
+inload_sell = 0
+inload_buy = 0
+
+pnl_final_long = 0 
+pnl_final_short= 0
+
+
+def truncate_float(float_number, decimal_places):
+    multiplier = 10 ** decimal_places
+    return int(float_number * multiplier) / multiplier
 
 def GetSellPrice(price):
     price_return = D('0')
@@ -115,21 +145,21 @@ def GetBuyPrice(price):
 
 
 def exportCSV(list1, list2, list3, list4):
-        df = pd.DataFrame(columns=['TIMESTAMP', 'AMOUNT', 'PRICE', 'SIDE','ORDERID','LIST', 'OFFLOAD'])
+        df = pd.DataFrame(columns=['TIMESTAMP', 'AMOUNT', 'PRICE', 'SIDE','ORDERID','LIST', 'OFFLOAD', 'ORDERSRCID'])
         i = 0
         for t in list1:
-            df.loc[i] = [t['timestamp']] + [t['amount']] + [t['price']] + [t['side']] + [t['id']] + ["LIMIT_SELL"] + ["False"]
+            df.loc[i] = [t['timestamp']] + [t['amount']] + [t['price']] + [t['side']] + [t['id']] + ["WAIT_SELL"] + ["False"] + ["0"]
             i += 1
         for t in list2:
-            df.loc[i] = [t['timestamp']] + [t['amount']] + [t['price']] + [t['side']] + [t['id']] + ["LIMIT_BUY"] + ["False"]
+            df.loc[i] = [t['timestamp']] + [t['amount']] + [t['price']] + [t['side']] + [t['id']] + ["WAIT_BUY"] + ["False"] + ["0"]
             i += 1
         for t in list3:
-            df.loc[i] = [t['timestamp']] + [t['amount']] + [t['price']] + [t['side']] + [t['id']] + ["SELL_PROFIT"] + [t['OFFLOAD']]
+            df.loc[i] = [t['timestamp']] + [t['amount']] + [t['price']] + [t['side']] + [t['id']] + ["SELL_PROFIT"] + [t['OFFLOAD']] + [t['src_id']]
             i += 1
         for t in list4:
-            df.loc[i] = [t['timestamp']] + [t['amount']] + [t['price']] + [t['side']] + [t['id']] + ["BUY_PROFIT"] + [t['OFFLOAD']]
+            df.loc[i] = [t['timestamp']] + [t['amount']] + [t['price']] + [t['side']] + [t['id']] + ["BUY_PROFIT"] + [t['OFFLOAD']] + [t['src_id']]
             i += 1    
-        df = df[['TIMESTAMP', 'AMOUNT', 'PRICE', 'SIDE','ORDERID','LIST', 'OFFLOAD']]
+        df = df[['TIMESTAMP', 'AMOUNT', 'PRICE', 'SIDE','ORDERID','LIST', 'OFFLOAD','ORDERSRCID']]
         df.to_csv('TradeOpen.csv')
 
 def importCSV():
@@ -140,36 +170,44 @@ def importCSV():
         i = 0
         order_tmp = {}
         while i < len(df.index):
-            if df.iloc[i]['LIST'] == "LIMIT_SELL" :
+            if df.iloc[i]['LIST'] == "WAIT_SELL" :
                 order_tmp ['timestamp'] = df.iloc[i]['TIMESTAMP']
                 order_tmp ['amount'] = df.iloc[i]['AMOUNT']
                 order_tmp ['price'] = df.iloc[i]['PRICE']
                 order_tmp ['side'] = df.iloc[i]['SIDE']
-                order_tmp ['id'] = str(df.iloc[i]['ORDERID'])
-                list_sell_order.append(order_tmp)
-            elif df.iloc[i]['LIST'] == "LIMIT_BUY" :
+                order_tmp ['id'] = df.iloc[i]['ORDERID']
+                list_wait_sell.append(order_tmp)
+                #short_set.add(D(str(order_tmp ['price'])))
+
+            elif df.iloc[i]['LIST'] == "WAIT_BUY" :
                 order_tmp ['timestamp'] = df.iloc[i]['TIMESTAMP']
                 order_tmp ['amount'] = df.iloc[i]['AMOUNT']
                 order_tmp ['price'] = df.iloc[i]['PRICE']
                 order_tmp ['side'] = df.iloc[i]['SIDE']
-                order_tmp ['id'] = str(df.iloc[i]['ORDERID'])
-                list_buy_order.append(order_tmp)
+                order_tmp ['id'] = df.iloc[i]['ORDERID']
+                list_wait_buy.append(order_tmp)
+                #long_set.add(D(str(order_tmp ['price'])))
+
             elif df.iloc[i]['LIST'] == "SELL_PROFIT" :
                 order_tmp ['timestamp'] = df.iloc[i]['TIMESTAMP']
                 order_tmp ['amount'] = df.iloc[i]['AMOUNT']
                 order_tmp ['price'] = df.iloc[i]['PRICE']
                 order_tmp ['side'] = df.iloc[i]['SIDE']
-                order_tmp ['id'] = str(df.iloc[i]['ORDERID'])
+                order_tmp ['id'] = df.iloc[i]['ORDERID']
                 order_tmp ['OFFLOAD'] = df.iloc[i]['OFFLOAD']
+                order_tmp ['src_id'] = df.iloc[i]['ORDERSRCID']
                 list_sell_profit.append(order_tmp)
+
             elif df.iloc[i]['LIST'] == "BUY_PROFIT" :
                 order_tmp ['timestamp'] = df.iloc[i]['TIMESTAMP']
                 order_tmp ['amount'] = df.iloc[i]['AMOUNT']
                 order_tmp ['price'] = df.iloc[i]['PRICE']
                 order_tmp ['side'] = df.iloc[i]['SIDE']
-                order_tmp ['id'] = str(df.iloc[i]['ORDERID'])
+                order_tmp ['id'] = df.iloc[i]['ORDERID']
                 order_tmp ['OFFLOAD'] = df.iloc[i]['OFFLOAD']
+                order_tmp ['src_id'] = df.iloc[i]['ORDERSRCID']
                 list_buy_profit.append(order_tmp)
+
             i += 1
             order_tmp = {}
 
@@ -249,45 +287,47 @@ def sanity_check_add(open_orders):
                 list_buy_profit.append(open_order)
                 print ("Sanity Check ADD BUY PROFIT ORDER")
 
-def inload(w,eth_btc_ask, eth_btc_bid):
+def inload(w,eth_btc_ask, eth_btc_bid, inload_sell, inload_buy):
     ## inload
-    print ("### INLOAD ###")
+    #print ("### INLOAD ###")
     sell_price = GetSellPrice(D(str(eth_btc_ask)))
     #w = binance.fetch_balance ()
-    if (w['ETH']['free'] >= 0.0020):
+    if (w['ETH']['free'] >= 0.010):
         #n = w['ETH']['free'] / 0.0020
         for sell_order_profit in list_sell_profit:
             if ((D(str(sell_order_profit['price'])) <= sell_price + inload_step) and sell_order_profit['OFFLOAD'] == True):
                 try:
                     o = binance.create_order('ETH/BTC', 'limit', 'sell', sell_order_profit['amount'], sell_order_profit['price'])
+                        #o = binance.create_order('ETH/BTC', 'limit', 'sell', (amount / sell_price) + amount   , sell_order_profit['price'])
                     sell_order_profit['id'] = o['id']
                     sell_order_profit['OFFLOAD'] = False
                     print ("inload sell_order_profit")
+                    inload_sell = inload_sell + 1
                 except Exception as e:
                     print ("exception inload sell_order_profit")
                     print (e)
                     break
     
     buy_price = GetBuyPrice(D(str(eth_btc_bid)))
-    if (w['BTC']['free'] >= 0.0001):
+    if (w['BTC']['free'] >= 0.0005):
         #n = w['BTC']['free']  / 0.0001
         for buy_order_profit in list_buy_profit:
             if ((D(str(buy_order_profit['price'])) >= buy_price - inload_step) and buy_order_profit['OFFLOAD'] == True):
                 try:
-                    #if (n >= 1):
-                    o = binance.create_order('ETH/BTC', 'limit', 'buy', buy_order_profit['amount'], buy_order_profit['price'])
+                    #o = binance.create_order('ETH/BTC', 'limit', 'buy', buy_order_profit['amount'], buy_order_profit['price'])
+                    o = binance.create_order('ETH/BTC', 'limit', 'buy', (amount / buy_price) + amount , buy_order_profit['price'])
                     buy_order_profit['id'] = o['id']
                     buy_order_profit['OFFLOAD'] = False
                     print ("inload buy_order_profit")
-                        #n -= 1
+                    inload_buy = inload_buy +1
                 except  Exception as e:
                     print ("exception inload buy_order_profit")
                     print (e)
                     #n -= 1
                     break
 
-def offload(eth_btc_ask, eth_btc_bid):
-    print ("### OFFLOAD ###")
+def offload(eth_btc_ask, eth_btc_bid, inload_sell, inload_buy):
+    #print ("### OFFLOAD ###")
     sell_price = GetSellPrice(D(str(eth_btc_ask)))
     for sell_order_profit in list_sell_profit:
         if ((D(str(sell_order_profit['price'])) > sell_price + offload_step)):
@@ -296,6 +336,7 @@ def offload(eth_btc_ask, eth_btc_bid):
                     binance.cancel_order(sell_order_profit['id'],'ETH/BTC')
                     sell_order_profit['OFFLOAD'] = True
                     print ("offload sell_order_profit")
+                    inload_sell = inload_sell - 1
                 except :
                     sell_order_profit['OFFLOAD'] = True
                     print ("exception offload sell_order_profit")
@@ -308,6 +349,7 @@ def offload(eth_btc_ask, eth_btc_bid):
                     binance.cancel_order(buy_order_profit['id'],'ETH/BTC')
                     buy_order_profit['OFFLOAD'] = True
                     print ("offload buy_order_profit")
+                    inload_buy = inload_buy - 1
                 except :
                     buy_order_profit['OFFLOAD'] = True
                     print ("exception offload buy_order_profit")
@@ -331,7 +373,6 @@ def supertrend():
 
     # Calcul du Supertrend
     data.ta.supertrend(close='close', length=10, multiplier=3, append=True)
-
     return  data['SUPERTd_10_3.0'].iloc[-1]
     
     
@@ -342,7 +383,7 @@ importCSV()
 list_buy_profit.sort(key=lambda x: x['price'], reverse=True)
 list_sell_profit.sort(key=lambda x: x['price'])
 
-#importWallet()
+
 
 ### cancel all orders before starting ###
 
@@ -360,8 +401,9 @@ while True:
     buy_price = D('0')
 
     print ("=======new round=======")
+    print ("Master round: ", master_round)
     print ("round number: ", n)
-    
+
     try:
         eth_btc = binance.fetchOrderBook('ETH/BTC')
     except:
@@ -370,10 +412,13 @@ while True:
     eth_btc_bid = eth_btc['bids'][0][0]
     
     w = binance.fetch_balance ()
-    inload (w,eth_btc_ask, eth_btc_bid)
+    print ("=======Inload=======")
+    inload (w,eth_btc_ask, eth_btc_bid, inload_sell, inload_buy)
 
-    exportCSV(list_sell_order,list_buy_order,list_sell_profit,list_buy_profit)
+    exportCSV(list_wait_sell,list_wait_buy,list_sell_profit,list_buy_profit)
+    print ("=======End Inload=======")
 
+    print ("=======Closer Order=======")
     print ("Closed Order check")
     try:
         closed_orders = binance.fetch_closed_orders ('ETH/BTC')
@@ -381,20 +426,19 @@ while True:
     except:
         print ("Binance Timed OUT call open and close orders")
         continue
-
     print ("order filled:", len(closed_orders))
     print ("order open:", len(open_orders))
-
     for closed_order in closed_orders :
         
         if (closed_order['side'] == 'sell') :
             find_order_sell = False
             list_sell_order_tmp2 = copy.copy(list_sell_order)
             for order in list_sell_order_tmp2 :
-                if closed_order['id'] == order ['id'] :
+                if closed_order['id'] == order ['id'] :         
                     try:
                         order_buy_profit = binance.create_order('ETH/BTC', 'limit', 'buy', closed_order['filled'], closed_order['price'] - (closed_order['price'] * gain), {})
                     except :
+                        print ("SELL ETH FILLED")
                         print ("exception closed order : buy profit")
                         order_buy_profit = {}
                         order_buy_profit['timestamp'] = client.get_server_time()['serverTime']
@@ -403,14 +447,19 @@ while True:
                         order_buy_profit['side']  = "buy"
                         order_buy_profit['id'] = 0
                         order_buy_profit['OFFLOAD'] = True
+                        order_buy_profit['src_id'] = order ['id'] 
                         list_buy_profit.append(order_buy_profit)
                         list_sell_order.remove(order)
+                        list_wait_sell.append(order)
                         find_order_sell = True
                     else:
                         order_buy_profit['OFFLOAD'] = False
+                        order_buy_profit['src_id'] = order ['id'] 
                         list_buy_profit.append(order_buy_profit)
                         list_sell_order.remove(order)
+                        list_wait_sell.append(order)
                         find_order_sell = True
+                        last_sell = closed_order['price']
                         print ("SELL ETH FILLED")
                         print ("Add buy profit order")
                     
@@ -420,7 +469,18 @@ while True:
                     if closed_order['id'] == order ['id'] :
                         list_sell_profit.remove(order)
                         print ("PNL BUY ETH -> SELL ETH")
-                        pnl_buy += 1 
+                        pnl_buy += 1
+                        list_wait_buy_tmp2 = copy.copy(list_wait_buy)
+                        for o in list_wait_buy_tmp2:
+                            if o['id'] == order ['src_id']:
+                                #long_set.remove(D(str(truncate_float(o['price'],5))))
+                                try:
+                                    long_set.remove(o['b_price'])
+                                except:
+                                    print ("b_price don't exist in long_set")
+                                list_wait_buy.remove(o)
+                                pnl_final_long += (closed_order['price'] - o['price'])*closed_order['amount']
+                        
             
         elif (closed_order['side'] == 'buy') :
             find_order_buy = False
@@ -430,6 +490,7 @@ while True:
                     try:
                         order_sell_profit = binance.create_order('ETH/BTC', 'limit', 'sell', closed_order['filled'], closed_order['price'] + (closed_order['price'] * gain), {})
                     except :
+                        print ("BUY ETH FILLED")
                         print ("exception closed order : sell profit")
                         order_sell_profit  = {}
                         order_sell_profit ['timestamp'] = client.get_server_time()['serverTime']
@@ -438,15 +499,20 @@ while True:
                         order_sell_profit ['side']  = "sell"
                         order_sell_profit ['id'] = 0
                         order_sell_profit ['OFFLOAD'] = True
+                        order_sell_profit ['src_id'] = order ['id']
                         list_sell_profit.append(order_sell_profit)
                         list_buy_order.remove(order)
+                        list_wait_buy.append(order)
                         find_order_buy = True
                         
                     else:
                         order_sell_profit['OFFLOAD'] = False
+                        order_sell_profit ['src_id'] = order ['id']
                         list_sell_profit.append(order_sell_profit)
                         list_buy_order.remove(order)
+                        list_wait_buy.append(order)
                         find_order_buy = True
+                        last_buy = closed_order['price']
                         print ("BUY ETH FILLED")
                         print ("Add Sell profit order")
 
@@ -457,138 +523,137 @@ while True:
                         list_buy_profit.remove(order)
                         print ("PNL SELL ETH -> BUY ETH")
                         pnl_sell += 1
+                        list_wait_sell_tmp2 = copy.copy(list_wait_sell)
+                        for o in list_wait_sell_tmp2:
+                            if o['id'] == order ['src_id']:
+                                #short_set.remove(D(str(truncate_float(o['price'],5))))
+                                try:
+                                    short_set.remove(o['s_price'])
+                                except:
+                                    print ("s_price don't exist in long_set")
+                                list_wait_sell.remove(o)
+                                pnl_final_short += (o['price'] - closed_order['price'])*closed_order['amount']                      
+    print ("=======End Closer Order=======")
+
+    print ("=======Calcul PNL=======")
+    Total_wallet = binance.fetch_balance ()
+    Pnl_btc_ratio = (Total_wallet['BTC']['total'] + Total_wallet['ETH']['total'] * Ratio_Start) - Total_Start
+    print ("Wallet BTC: ",Total_wallet['BTC']['total'])
+    print ("Wallet ETH: ",Total_wallet['ETH']['total'])
+    print ("=======END Calcul PNL=======")
     
-                        
-    if (n == 0) :
-        try:
-            open_orders = binance.fetch_open_orders('ETH/BTC')                     
-            sanity_check_delete(open_orders)
-            sanity_check_add(open_orders)
-        except:
-            continue
-    else :
-        try:
-            open_orders = binance.fetch_open_orders('ETH/BTC')
-            if (len(last_closed_orders) == len(closed_orders)):
-                sanity_check_delete(open_orders)
-            else:
-                print ("No sanity check")
-        except:
-            continue
-    
-    exportCSV(list_sell_order,list_buy_order,list_sell_profit,list_buy_profit)
+    #print ("=======SanityCheck=======")
+    #if (n == 0) :
+    #    try:
+    #        open_orders = binance.fetch_open_orders('ETH/BTC')                     
+    #        sanity_check_delete(open_orders)
+    #        sanity_check_add(open_orders)
+    #    except:
+    #        continue
+    #else :
+    #    try:
+    #        open_orders = binance.fetch_open_orders('ETH/BTC')
+    #        if (len(last_closed_orders) == len(closed_orders)):
+    #            sanity_check_delete(open_orders)
+    #        else:
+    #            print ("No sanity check")
+    #    except:
+    #        continue
+    #exportCSV(list_wait_sell,list_wait_buy,list_sell_profit,list_buy_profit)
+    #print ("=======EndSanityCheck=======")
 
     ## offload
-    offload(eth_btc_ask, eth_btc_bid)
+
+    print ("=======OFFLOAD=======")
+    offload(eth_btc_ask, eth_btc_bid, inload_sell, inload_buy)
     
-    exportCSV(list_sell_order,list_buy_order,list_sell_profit,list_buy_profit)
+    exportCSV(list_wait_sell,list_wait_buy,list_sell_profit,list_buy_profit)
+    print ("=======EndOFFLOAD=======")
 
-    params={
-    "timeInForce": "PO"
-    }
+    print ("=======SuperTrend=======")
+    try:
+        Trend = supertrend()
+    except :
+        Trend = 0
+    if (Trend == 1):
+        print ("Trend is LONG")
+    elif (Trend == -1):
+        print ("Trend is SHORT")
+    else:
+        print ("ERROR Calcul of Trend")
+    print ("=======ENDTrend=======")
 
-    #SuperTrend
-
-    Trend = supertrend()
-
-
-    ##### sell side
+    ##### Long side
+    print ("=======Taking LONG=======")
     print ("eth_btc_ask:", eth_btc_ask)
-    sell_price = GetSellPrice(D(str(eth_btc_ask)))
-    print ("sell_price: ", sell_price)
-    print ("last_sell ", last_sell)
-    print ("before_last_sell ", before_last_sell)
-    
-    ### temporaire
-    sell_depth = sell_price +  depth
-    
-    while (sell_price <= sell_depth):
-        
-        sell_tag = False
-        list_sell_order_tmp3 = copy.copy(list_sell_order)
-        for order in list_sell_order_tmp3 :
-            ## check if the price is already quoted
-            if (sell_price == D(str(order['price']))):
-                sell_tag = True
-            
-            if ((D(str(order['price'])) > sell_depth + depth) or Trend == 1):
-                try:
-                    binance.cancel_order(order['id'],'ETH/BTC')
-                    list_sell_order.remove(order)
-                    print ("cancell sell limit order")
-                except :
-                    print ("exception cancell sell limit order")
-                
-        #if (sell_tag == False and sell_price != last_sell  and sell_price != before_last_sell and sell_price > D('0.04999'))
-        if (sell_tag == False and sell_price > D('0.04999') and w['ETH']['free'] >= 0.0020 and Trend == -1) :
+    b_price = GetSellPrice(D(str(eth_btc_ask)))
+    print ("b_price: ", b_price)
+    if (Trend == 1):
+        if b_price in long_set :
+            print ("Position Long on b_price is already take")
+        else:
             try:
-                order_sell = binance.create_order('ETH/BTC', 'limit', 'sell', (amount / sell_price) + amount , sell_price, params)
-                last_sell = sell_price
-                before_last_sell = last_sell - step
-                list_sell_order.append(order_sell)
-                print ("Add sell limit order ", sell_price)
+                b_order = binance.create_market_order('ETH/BTC', 'buy', (amount / b_price) + amount)
+                #p=D(str(truncate_float(b_order['price'],5)))
+                long_set.add(b_price)
+                b_order['b_price'] = b_price
+                list_buy_order.append(b_order)
+                print ("Taking Long on b_price:", b_price)
             except :
-                print ("exception add sell limit order")
+                print ("exception LONG market order on b_price")
+    print ("=======END Taking LONG=======")
 
-        sell_price = sell_price + step      
 
-    ##### buy side
+    #### Short side
+    print ("=======Taking SHORT=======")
     print ("eth_btc_bid:", eth_btc_bid)
-    buy_price = GetBuyPrice(D(str(eth_btc_bid)))
-    print ("buy_price: ", buy_price)
-    print ("last_buy ", last_buy)
-    print ("before_last_buy ", before_last_buy)
-
-    ### temporaire
-    buy_depth = buy_price -  depth
-          
-    while (buy_price >= buy_depth):
-        ## check if the price is already quoted
-        buy_tag = False
-
-        list_buy_order_tmp3 = copy.copy(list_buy_order)
-        for order in list_buy_order_tmp3 :
-            ## check if the price is already quoted
-
-            if (buy_price ==  D(str(order['price']))):
-                buy_tag = True
-            
-            if ((D(str(order['price'])) < buy_depth - depth) or Trend == -1):
-                try:
-                    binance.cancel_order(order['id'],'ETH/BTC')
-                    list_buy_order.remove(order)
-                    print ("cancell buy limit order")
-                except :
-                    print ("exception cancell buy limit order")
-                    
-                
-        #if (buy_tag == False and buy_price != last_buy and buy_price != before_last_buy and buy_price < D('0.06'))         
-        if (buy_tag == False and buy_price < D('0.06') and w['BTC']['free'] >= 0.0001 and Trend == 1) :
-            ## check if the price is already quoted
-            ## else push limit order
+    s_price = GetBuyPrice(D(str(eth_btc_bid)))
+    print ("s_price: ", s_price)
+    if (Trend == -1):
+        if s_price in short_set :
+            print ("Position Short on s_price is already take")
+        else:
             try:
-                order_buy = binance.create_order('ETH/BTC', 'limit', 'buy', (amount / buy_price) + amount, buy_price, params)
-                last_buy = buy_price
-                before_last_buy = last_buy + step
-                list_buy_order.append(order_buy)
-                print ("Add buy limit order ", buy_price)
+                s_order = binance.create_market_order('ETH/BTC', 'sell', (amount / b_price) + amount)
+                #p=D(str(truncate_float(s_order['price'],5)))
+                short_set.add(s_price)
+                s_order['s_price'] = s_price
+                list_sell_order.append(s_order)
+                print ("Taking Short on s_price:", s_price)
             except :
-                print ("exception add buy limit order ")
-                    
-            ## on confirmation add order in the list
-            
-        ## decrement price
-        buy_price = buy_price - step
+                print ("exception SHORT market order on s_price")
 
-    exportCSV(list_sell_order,list_buy_order,list_sell_profit,list_buy_profit)
+    
+    print ("=======END Taking BUY side=======")
+    exportCSV(list_wait_sell,list_wait_buy,list_sell_profit,list_buy_profit)
 
-    print ("Nombre de sell limite order:",len(list_sell_order))
-    print ("Nombre de buy limite order:",len(list_buy_order))
+    print ("=======STATS=======")
+    #print ("Nombre de sell limite order:",len(list_sell_order))
+    #print ("Nombre de buy limite order:",len(list_buy_order))
     print ("Nombre de buy profit:",len(list_buy_profit))
     print ("Nombre de sell profit:",len(list_sell_profit))
-    print ("Nombre de order:", len(list_sell_order)+len(list_buy_order)+len(list_buy_profit)+len(list_sell_profit))
-    print ("PNL Short ETH: ", pnl_sell)
-    print ("PNL Long ETH: ", pnl_buy)
+    print ("Nombre de order profit:", len(list_buy_profit)+len(list_sell_profit))
+
+    ### calcul pnl:
+    pnl_latent_long = 0
+    pnl_latent_short= 0
+    for b in list_wait_buy:
+        pnl_latent_long += (eth_btc_bid - b['price'])*b['amount']
+    for s in list_wait_sell:
+        pnl_latent_short += (s['price'] - eth_btc_ask)*s['amount']
+    print ("PNL Waiting Short: ", pnl_latent_short)
+    print ("PNL Waiting Long: ", pnl_latent_long)
+
+    print ("PNL FINAL Long:", pnl_final_long)
+    print ("PNL FINAL Short:", pnl_final_short)
+
+    print ("Nb de pnl long:", pnl_buy)
+    print ("Nb de pnl short:", pnl_sell)
+    
+    print ("Total actual BTC with ratio start: ",Total_wallet['BTC']['total'] + Total_wallet['ETH']['total'] * Ratio_Start)
+    print ("PNL BTC from ratio start: ", Pnl_btc_ratio)
+   
+
 
     list_buy_order_tmp = []
     list_sell_order_tmp = []
@@ -597,7 +662,12 @@ while True:
     list_buy_profit.sort(key=lambda x: x['price'], reverse=True)
     list_sell_profit.sort(key=lambda x: x['price'])
     
+    if (inload_sell < 0):
+        inload_sell = 0
+    if (inload_buy < 0):
+        inload_buy = 0
 
+    print ("=======END ROUND=======")
     time.sleep(5)
 
 
