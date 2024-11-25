@@ -919,6 +919,12 @@ while True:
         w_short = binance_short.fetch_balance ()
     except:
         continue
+
+    if (w_long['BTC']['total'] < amount and w_short['ETH']['total'] < (amount / b_price)):
+        transfert_allowed = True
+    else:
+        transfert_allowed = False
+        
     
     if (w_long['BTC']['total'] < amount and Trend == 1 and w_short['BTC']['total'] > (min_wallet_amount * amount) and transfert_allowed == True):
         t_amount = D("0")
